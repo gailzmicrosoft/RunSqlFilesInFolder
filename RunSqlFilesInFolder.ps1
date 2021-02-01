@@ -1,6 +1,6 @@
 #======================================================================================================================#
 #                                                                                                                      #
-#  Migratemaster Version 1.0, July 2020                                                                                #
+#  Migratemaster Version 1.0, Script updated in January 2021                                                           #
 #                                                                                                                      #
 #  This utility was developed on a best effort basis by Azure Synapse CSE Team and Data SQL Ninja team,                #
 #  to aid SQL Server to Azure Synapse Migration Practitioners.                                                         #
@@ -20,7 +20,7 @@
 #======================================================================================================================#
 #
 # Author: Gaiye "Gail" Zhou
-# July 2020
+# 
 # Description: It will run SQL Scripts stored in .sql files in specified folder. 
 # The program will promot users for one JSON config file name that is placed in the 
 # same location as this script. 
@@ -53,46 +53,8 @@ Function GetPassword([SecureString] $securePassword) {
     return $P
 }
 
-Function GetDurationText() {
-    [CmdletBinding()] 
-    param( 
-        [Parameter(Position = 1, Mandatory = $true)] [datetime]$StartTime, 
-        [Parameter(Position = 1, Mandatory = $true)] [datetime]$FinishTime
-    ) 
 
-    $Timespan = (New-TimeSpan -Start $StartTime -End $FinishTime)
-
-    $Days = [math]::floor($Timespan.Days)
-    $Hrs = [math]::floor($Timespan.Hours)
-    $Mins = [math]::floor($Timespan.Minutes)
-    $Secs = [math]::floor($Timespan.Seconds)
-    $MSecs = [math]::floor($Timespan.Milliseconds)
-
-    if ($Days -ne 0) {
-
-        $Hrs = $Days * 24 + $Hrs 
-    }
-
-    $durationText = '' # initialize it! 
-
-    if (($Hrs -eq 0) -and ($Mins -eq 0) -and ($Secs -eq 0)) {
-        $durationText = "$MSecs milliseconds." 
-    }
-    elseif (($Hrs -eq 0) -and ($Mins -eq 0)) {
-        $durationText = "$Secs seconds $MSecs milliseconds." 
-    }
-    elseif ( ($Hrs -eq 0) -and ($Mins -ne 0)) {
-        $durationText = "$Mins minutes $Secs seconds $MSecs milliseconds." 
-    }
-    else {
-        $durationText = "$Hrs hours $Mins minutes $Secs seconds $MSecs milliseconds."
-    }
-
-    return $durationText
-
-}
-
-Function GetDurationNumbers() {
+Function GetDurations() {
     [CmdletBinding()] 
     param( 
         [Parameter(Position = 1, Mandatory = $true)] [datetime]$StartTime, 
@@ -112,6 +74,24 @@ Function GetDurationNumbers() {
 
         $Hrs = $Days * 24 + $Hrs 
     }
+
+   
+    $durationText = '' # initialize it! 
+
+    if (($Hrs -eq 0) -and ($Mins -eq 0) -and ($Secs -eq 0)) {
+        $durationText = "$MSecs milliseconds." 
+    }
+    elseif (($Hrs -eq 0) -and ($Mins -eq 0)) {
+        $durationText = "$Secs seconds $MSecs milliseconds." 
+    }
+    elseif ( ($Hrs -eq 0) -and ($Mins -ne 0)) {
+        $durationText = "$Mins minutes $Secs seconds $MSecs milliseconds." 
+    }
+    else {
+        $durationText = "$Hrs hours $Mins minutes $Secs seconds $MSecs milliseconds."
+    }
+
+    $ReturnValues.add("DurationText",  $durationText)
 
     $ReturnValues.add("Hours", $Hrs)
     $ReturnValues.add("Minutes", $Mins)
@@ -172,50 +152,6 @@ Function ExecuteSqlScriptFile {
 	 
 } 
 
-# Keep this function even it is not used by this script 
-#   ExecuteSqlCmdFile is used. ExecuteSqlCmdFile is preferred. 
-Function ExecuteQueryFile { 
-    [CmdletBinding()] 
-    param( 
-        [Parameter(Position = 1, Mandatory = $false)] [System.Data.SqlClient.SqlConnection]$Connection, 
-        [Parameter(Position = 2, Mandatory = $false)] [string]$InputFile, 
-        [Parameter(Position = 3, Mandatory = $false)] [Int32]$QueryTimeout = 300
-    ) 
-
-    $ReturnValues = @{ }
-    try {
-        $filePath = $(resolve-path $InputFile).path 
-        $Query = [System.IO.File]::ReadAllText("$filePath") 
-
-        $cmd = new-object system.Data.SqlClient.SqlCommand($Query, $Connection) 
-        $cmd.CommandTimeout = $QueryTimeout 
-        $ds = New-Object system.Data.DataSet 
-        $da = New-Object system.Data.SqlClient.SqlDataAdapter($cmd)
-
-        [void]$da.fill($ds) 
-
-        $ReturnValues.add('Status', "Success")
-        $ReturnValues.add('Msg', "")
-
-    }
-    Catch [System.Data.SqlClient.SqlException] {
-        $Err = $_ 
-        $ReturnValues.add('Status', "Error")
-        $ReturnValues.add('Msg', $Err)
-    } 
-    Catch {
-        $Err = $_ 
-        $ReturnValues.add('Status', "Error")
-        $ReturnValues.add('Msg', $Err)
-    }  
-    Finally { 
-        $cmd.Dispose()
-        $ds.Dispose()
-        $da.Dispose()
-    }
-    return $ReturnValues
-	 
-} 
 
 ######################################################################################
 ########### Main Program 
@@ -231,6 +167,8 @@ Set-Location -Path $ScriptPath
 # Config File, SQL Server, and DB here
 #===========================================
 
+#$defaultCfgFile = "sql_synapse_gailz.json"
+#$defaultCfgFile = "sql_scripts_gailz.json"
 $defaultCfgFile = "sql_scripts.json"
 
 $cfgFile = Read-Host -prompt "Enter the Config File Name or press 'Enter' to accept the default [$($defaultCfgFile)]"
@@ -339,8 +277,7 @@ foreach ($f in Get-ChildItem -path $SqlScriptFilePath  -Filter *.sql) {
     # Run the Script in $SqlScriptFilename 
     $StartTime = (Get-Date)
 
-   # $ReturnValues = ExecuteQueryFile -Connection $MySqlConnection -InputFile $SqlScriptFileName -QueryTimeout $myQueryTimeOut 
-     $ReturnValues = ExecuteSqlScriptFile -ConnectionString $MyConnectionString -InputFile $SqlScriptFileName -QueryTimeout $myQueryTimeOut 
+    $ReturnValues = ExecuteSqlScriptFile -ConnectionString $MyConnectionString -InputFile $SqlScriptFileName -QueryTimeout $myQueryTimeOut 
 
     $FinishTime = (Get-Date)
     
@@ -348,9 +285,6 @@ foreach ($f in Get-ChildItem -path $SqlScriptFilePath  -Filter *.sql) {
     $Status = $ReturnValues.Status.ToString()
     $Message = $ReturnValues.Msg.ToString()
    
-
-    $runDurationText = GetDurationText -StartTime $StartTime -FinishTime $FinishTime
-
     if ($Status -eq 'Success') {
         $DisplayMessage = "  Process Completed for File: " + $SqlScriptFileName + "  Duration: $runDurationText "
         Write-Host $DisplayMessage -ForegroundColor Green -BackgroundColor Black
@@ -381,11 +315,13 @@ foreach ($f in Get-ChildItem -path $SqlScriptFilePath  -Filter *.sql) {
         }
     }
 
-    $runDurationNumbers = GetDurationNumbers -StartTime $StartTime -FinishTime $FinishTime
-    $runHours = $runDurationNumbers.Hours
-    $runMinutes = $runDurationNumbers.Minutes
-    $runSeconds = $runDurationNumbers.Seconds
-    $runMilliSeconds = $runDurationNumbers.Milliseconds 
+
+    $runDurationInfo = GetDurations -StartTime $StartTime -FinishTime $FinishTime
+    $runHours = $runDurationInfo.Hours
+    $runMinutes = $runDurationInfo.Minutes
+    $runSeconds = $runDurationInfo.Seconds
+    $runMilliSeconds = $runDurationInfo.Milliseconds 
+    $runDurationText = $runDurationInfo.DurationText
 
     <#
     $dataRow = $SqlScriptFileName, $runDurationText, $runHours, $runMinutes, $runSeconds, $runMilliSeconds, $Status, $Message
@@ -411,8 +347,8 @@ foreach ($f in Get-ChildItem -path $SqlScriptFilePath  -Filter *.sql) {
 
 $ProgramFinishTime = (Get-Date)
 
-$durationText = GetDurationText  -StartTime  $ProgramStartTime -FinishTime $ProgramFinishTime
+$progDurationText = GetDurations  -StartTime  $ProgramStartTime -FinishTime $ProgramFinishTime
 
-Write-Host "  Total time runing these SQL Files: $durationText " -ForegroundColor Blue -BackgroundColor Black
+Write-Host "  Total time runing these SQL Files: $progDurationText " -ForegroundColor Blue -BackgroundColor Black
 
 Set-Location -Path $ScriptPath
